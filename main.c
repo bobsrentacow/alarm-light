@@ -1,51 +1,17 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdbool.h>
-#include <stdint.h>
+#include <getopt.h>
 #include <signal.h>
-#include <unistd.h>
-#include <math.h>
-#include <time.h>
+#include <stdbool.h>
+#include "alarm_light.h"
 
-#include "ws2811.h"
-#include "color_temp.h"
-
-#define WIDTH       (120)
-#define HEIGHT      (1)
-#define LED_COUNT   (WIDTH * HEIGHT)
-#define FPS         (16)
-
-#define LOG2_255p5  (7.997179481)
-#define LOG2_511p5  (8.998590430)
-
-ws2811_t ledstring = {
-  .freq = 800000,
-  .dmanum = 10,
-  .channel = {
-    [0] = {
-      .gpionum = 18,
-      .count = LED_COUNT,
-      .invert = 0,
-      .brightness = 255,
-      .strip_type = SK6812W_STRIP,
-    },
-    [1] = {
-      .gpionum = 0,
-      .count = 0,
-      .invert = 0,
-      .brightness = 0,
-    },
-  },
-};
-
-static bool running = true;
 static void
 ctrl_c_handler(
     int signum
 )
 {
   (void)(signum);
-  running = false;
+  alarm_light_off();
 }
 
 static void
@@ -61,79 +27,190 @@ setup_handlers(
   sigaction(SIGTERM, &sa, NULL);
 }
 
+static void
+print_usage(
+    void
+)
+{
+  fprintf(stderr, "-o cannot be combined with other options.\n");
+  fprintf(stderr, "Cannot combine -k with -rgbw. Specify color with either temperature or components.\n");
+  exit(-1);
+}
+
+struct options {
+  double bright;
+  double kelvin;
+  double red;
+  double green;
+  double blue;
+  double white;
+  bool   off;
+};
+
+struct options
+parse_args(
+    int argc,
+    char *argv[]
+)
+{
+  struct options opts = {
+    .bright = 1.0,
+    .kelvin = -1,
+    .red    = -1,
+    .green  = -1,
+    .blue   = -1,
+    .white  = -1,
+    .off    = false
+  };
+
+  int c;
+  static int off_flag = 0;
+  while(true) {
+    static struct option long_options[] = {
+      {"off",    no_argument,       &off_flag, 0},
+      {"bright", required_argument, 0,         'B'},
+      {"kelvin", required_argument, 0,         'k'},
+      {"red",    required_argument, 0,         'r'},
+      {"green",  required_argument, 0,         'g'},
+      {"blue",   required_argument, 0,         'b'},
+      {"white",  required_argument, 0,         'w'},
+      {0, 0, 0, 0}
+    };
+
+    int option_index = 0;
+
+    c = getopt_long(argc, argv, "B:k:r:g:b:w:o", long_options, &option_index);
+
+    if (-1 == c)
+      break;
+
+    switch (c) {
+      case 0:
+      case 'o':
+        if (opts.red   >= 0)
+          print_usage();
+        if (opts.green >= 0)
+          print_usage();
+        if (opts.blue  >= 0)
+          print_usage();
+        if (opts.white >= 0)
+          print_usage();
+        if (opts.kelvin >= 0)
+          print_usage();
+        if (opts.bright != 1.0)
+          print_usage();
+        opts.off = true;
+        break;
+      case 'B':
+        if (opts.off)
+          print_usage();
+        opts.bright = strtod(optarg, 0);
+        break;
+      case 'k':
+        if (opts.red   >= 0)
+          print_usage();
+        if (opts.green >= 0)
+          print_usage();
+        if (opts.blue  >= 0)
+          print_usage();
+        if (opts.white >= 0)
+          print_usage();
+        if (opts.off)
+          print_usage();
+        opts.kelvin = strtod(optarg, 0);
+        break;
+      case 'r':
+        if (opts.kelvin >= 0)
+          print_usage();
+        if (opts.off)
+          print_usage();
+        opts.red = strtod(optarg, 0);
+        break;
+      case 'g':
+        if (opts.kelvin >= 0)
+          print_usage();
+        if (opts.off)
+          print_usage();
+        opts.green = strtod(optarg, 0);
+        break;
+      case 'b':
+        if (opts.kelvin >= 0)
+          print_usage();
+        if (opts.off)
+          print_usage();
+        opts.blue = strtod(optarg, 0);
+        break;
+      case 'w':
+        if (opts.kelvin >= 0)
+          print_usage();
+        if (opts.off)
+          print_usage();
+        opts.white = strtod(optarg, 0);
+        break;
+      case '?':
+        break;
+      default:
+        abort();
+    }
+  }
+
+  return opts;
+}
+
 int
 main(
     int argc,
     char *argv[]
 )
 {
-  // catch signals
+  struct options opts = parse_args(argc, argv);
+  //printf(" bright: %f\n", opts.bright);
+  //printf(" kelvin: %f\n", opts.kelvin);
+  //printf(" red   : %f\n", opts.red   );
+  //printf(" green : %f\n", opts.green );
+  //printf(" blue  : %f\n", opts.blue  );
+  //printf(" white : %f\n", opts.white );
+  //printf(" off   : %s\n", opts.off   ? "true" : "false");
+
+  if (opts.off) {
+    alarm_light_init();
+    alarm_light_off();
+    return 0;
+  }
+
+  if (opts.kelvin >= 0) {
+    alarm_light_init();
+    alarm_light_set_mono_kelvin(opts.kelvin, opts.bright);
+    return 0;
+  }
+
+  if (opts.red >= 0 || opts.green >= 0 || opts.blue >= 0 || opts.white >= 0) {
+    if (opts.red < 0)
+      opts.red = 0;
+    if (opts.red > 1)
+      opts.red = 1;
+    if (opts.green < 0)
+      opts.green = 0;
+    if (opts.green > 1)
+      opts.green = 1;
+    if (opts.blue < 0)
+      opts.blue = 0;
+    if (opts.blue > 1)
+      opts.blue = 1;
+    if (opts.white < 0)
+      opts.white = 0;
+    if (opts.white > 1)
+      opts.white = 1;
+
+    alarm_light_init();
+    alarm_light_set_mono_rgbw(opts.red, opts.green, opts.blue, opts.white, opts.bright);
+    return 0;
+  }
+
   setup_handlers();
+  alarm_light_init();
+  alarm_light_wakeup(30, 0, 0.004, 1000, 50);
 
-  int ii;
-
-  // record startTime
-  struct timespec startTime, now;
-  clock_gettime(CLOCK_REALTIME, &startTime);
-
-  ws2811_return_t ret;
-  if ((ret = ws2811_init(&ledstring)) != WS2811_SUCCESS) {
-    fprintf(stderr, "ws2811_init failed: %s\n", ws2811_get_return_t_str(ret));
-    return ret;
-  }
-
-  // seed rand()
-  srand(time(0));
-
-  while (running) {
-    // elapsed time
-    clock_gettime(CLOCK_REALTIME, &now);
-    double d_secSinceStart = (now.tv_sec - startTime.tv_sec) + 1e-9 * (now.tv_nsec - startTime.tv_nsec);
-
-    // brightness
-    double d_maxBright = 0 + 0.033 * d_secSinceStart;
-    d_maxBright = (d_maxBright < 0) ? 0 : (d_maxBright > LOG2_511p5) ? LOG2_511p5 : d_maxBright;
-    int minBright;
-    int maxBright;
-    if (d_maxBright >= LOG2_255p5) {
-      maxBright = 255;
-      minBright = (int)pow(2.0, LOG2_511p5 - d_maxBright);
-    } else {
-      maxBright = (int)pow(2.0, d_maxBright);
-      minBright = maxBright;
-    }
-
-    // color temp
-    color_temp_t color;
-    color.kelvin = 1000 +  10.0 * d_secSinceStart;
-    interp_color_temp(&color);
-    //printf("r%0.3f g%0.3f b%0.3f w%0.3f\n", color.norm_red, color.norm_green, color.norm_blue, 0.0);
-
-    // synthesize colors & brightness
-    uint32_t red, green, blue, white;
-    for (ii=0; ii<LED_COUNT; ii++) {
-      white = (uint32_t)(255.0 * 0                * 0.5 * (1.0 + rand() / (double)RAND_MAX)) << 24;
-      red   = (uint32_t)(255.0 * color.norm_red   * 0.5 * (1.0 + rand() / (double)RAND_MAX)) << 16;
-      green = (uint32_t)(255.0 * color.norm_green * 0.5 * (1.0 + rand() / (double)RAND_MAX)) <<  8;
-      blue  = (uint32_t)(255.0 * color.norm_blue  * 0.5 * (1.0 + rand() / (double)RAND_MAX)) <<  0;
-      ledstring.channel[0].leds[ii] = white | red | green | blue;
-    }
-    ledstring.channel[0].brightness = (uint8_t) (minBright + ((maxBright - minBright) * (rand() / (double)RAND_MAX)));
-
-    if ((ret = ws2811_render(&ledstring)) != WS2811_SUCCESS) {
-      fprintf(stderr, "ws2811_render failed: %s\n", ws2811_get_return_t_str(ret));
-      break;
-    }
-
-    usleep(1000000 / FPS);
-  }
-
-  // turn off LEDs & get out
-  for (ii=0; ii<LED_COUNT; ii++)
-    ledstring.channel[0].leds[ii] = 0;
-  ws2811_render(&ledstring);
-  ws2811_fini(&ledstring);
-
-  return ret;
+  return 0;
 }
 

@@ -35,7 +35,11 @@
 *.i*86
 *.x86_64
 *.hex
-alarm-light
+test
+
+# Output packages
+libalarm-light/
+libalarm-light.deb
 
 # Debug files
 *.dSYM/

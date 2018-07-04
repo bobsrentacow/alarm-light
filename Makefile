@@ -1,8 +1,26 @@
 pwd = $(shell pwd)
-alarm-light: main.o
-	gcc -L$(pwd) -Wall -Werror -o alarm-light main.o -lcolor-temp -lws2811 -lm
-main.o: main.c color_temp.h ws2811.h
-	gcc -c -Wall -Werror main.c
+
+test: main.c libalarm-light.so
+	gcc -L$(pwd) -Wall -Werror -o test main.c -lalarm-light -lcolor-temp -lws2811 -lm
+libalarm-light.so: alarm-light.o
+	gcc -shared -Wall -o libalarm-light.so alarm_light.o
+alarm-light.o: alarm_light.c color_temp.h ws2811.h
+	gcc -c -Wall -Werror -fpic alarm_light.c
+deb: libalarm-light.so
+	mkdir -p libalarm-light/usr/local/lib
+	cp libalarm-light.so libalarm-light/usr/local/lib
+	cp -r DEBIAN libalarm-light/
+	dpkg-deb --build libalarm-light
+.PHONY: install
+install:
+	cp libalarm-light.so /usr/local/lib/
+	chmod 0755 /usr/local/lib/libalarm-light.so
+	ldconfig
+.PHONY: uninstall
+uninstall:
+	rm /usr/local/lib/libalarm-light.so
+	ldconfig
 .PHONY: clean
 clean:
-	rm -f alarm-light main.o
+	rm -f test libalarm-light.deb libalarm-light.so alarm-light.o
+	rm -rf libalarm-light/
