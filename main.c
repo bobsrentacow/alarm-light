@@ -33,7 +33,8 @@ print_usage(
 )
 {
   fprintf(stderr, "-o cannot be combined with other options.\n");
-  fprintf(stderr, "Cannot combine -k with -rgbw. Specify color with either temperature or components.\n");
+  fprintf(stderr, "Cannot combine -a with -krgb.\n");
+  fprintf(stderr, "Cannot combine -k with -rgb. Specify color with either temperature or components.\n");
   exit(-1);
 }
 
@@ -70,6 +71,7 @@ parse_args(
       {"off",    no_argument,       &off_flag, 0},
       {"bright", required_argument, 0,         'B'},
       {"kelvin", required_argument, 0,         'k'},
+      {"all",    required_argument, 0,         'a'},
       {"red",    required_argument, 0,         'r'},
       {"green",  required_argument, 0,         'g'},
       {"blue",   required_argument, 0,         'b'},
@@ -79,7 +81,7 @@ parse_args(
 
     int option_index = 0;
 
-    c = getopt_long(argc, argv, "B:k:r:g:b:w:o", long_options, &option_index);
+    c = getopt_long(argc, argv, "B:k:a:r:g:b:w:o", long_options, &option_index);
 
     if (-1 == c)
       break;
@@ -107,42 +109,54 @@ parse_args(
         opts.bright = strtod(optarg, 0);
         break;
       case 'k':
+        if (opts.off)
+          print_usage();
         if (opts.red   >= 0)
           print_usage();
         if (opts.green >= 0)
           print_usage();
         if (opts.blue  >= 0)
           print_usage();
-        if (opts.white >= 0)
-          print_usage();
-        if (opts.off)
-          print_usage();
         opts.kelvin = strtod(optarg, 0);
         break;
-      case 'r':
+      case 'a':
+        if (opts.off)
+          print_usage();
         if (opts.kelvin >= 0)
           print_usage();
+        if (opts.red   >= 0)
+          print_usage();
+        if (opts.green >= 0)
+          print_usage();
+        if (opts.blue  >= 0)
+          print_usage();
+        opts.white = strtod(optarg, 0);
+        opts.red   = opts.white;
+        opts.green = opts.white;
+        opts.blue  = opts.white;
+        break;
+      case 'r':
         if (opts.off)
+          print_usage();
+        if (opts.kelvin >= 0)
           print_usage();
         opts.red = strtod(optarg, 0);
         break;
       case 'g':
-        if (opts.kelvin >= 0)
-          print_usage();
         if (opts.off)
+          print_usage();
+        if (opts.kelvin >= 0)
           print_usage();
         opts.green = strtod(optarg, 0);
         break;
       case 'b':
-        if (opts.kelvin >= 0)
-          print_usage();
         if (opts.off)
+          print_usage();
+        if (opts.kelvin >= 0)
           print_usage();
         opts.blue = strtod(optarg, 0);
         break;
       case 'w':
-        if (opts.kelvin >= 0)
-          print_usage();
         if (opts.off)
           print_usage();
         opts.white = strtod(optarg, 0);
@@ -164,13 +178,13 @@ main(
 )
 {
   struct options opts = parse_args(argc, argv);
-  //printf(" bright: %f\n", opts.bright);
-  //printf(" kelvin: %f\n", opts.kelvin);
-  //printf(" red   : %f\n", opts.red   );
-  //printf(" green : %f\n", opts.green );
-  //printf(" blue  : %f\n", opts.blue  );
-  //printf(" white : %f\n", opts.white );
-  //printf(" off   : %s\n", opts.off   ? "true" : "false");
+  printf("bright: %f\n", opts.bright);
+  printf("kelvin: %f\n", opts.kelvin);
+  printf("red   : %f\n", opts.red   );
+  printf("green : %f\n", opts.green );
+  printf("blue  : %f\n", opts.blue  );
+  printf("white : %f\n", opts.white );
+  printf("off   : %s\n", opts.off   ? "true" : "false");
 
   if (opts.off) {
     alarm_light_init();
@@ -179,8 +193,21 @@ main(
   }
 
   if (opts.kelvin >= 0) {
+    if (opts.kelvin < 1000)
+      opts.kelvin = 1000;
+    if (opts.kelvin > 20000)
+      opts.kelvin = 20000;
+    if (opts.white < 0)
+      opts.white = 0;
+    if (opts.white > 1)
+      opts.white = 1;
+    if (opts.bright < 0)
+      opts.bright = 0;
+    if (opts.bright > 1)
+      opts.bright = 1;
+
     alarm_light_init();
-    alarm_light_set_mono_kelvin(opts.kelvin, opts.bright);
+    alarm_light_set_mono_kelvin(opts.kelvin, opts.white, opts.bright);
     return 0;
   }
 
@@ -201,6 +228,10 @@ main(
       opts.white = 0;
     if (opts.white > 1)
       opts.white = 1;
+    if (opts.bright < 0)
+      opts.bright = 0;
+    if (opts.bright > 1)
+      opts.bright = 1;
 
     alarm_light_init();
     alarm_light_set_mono_rgbw(opts.red, opts.green, opts.blue, opts.white, opts.bright);
@@ -209,7 +240,7 @@ main(
 
   setup_handlers();
   alarm_light_init();
-  alarm_light_wakeup(30, 0, 0.004, 1000, 50);
+  alarm_light_wakeup(600, 0, 0.004, 1000, 50);
 
   return 0;
 }

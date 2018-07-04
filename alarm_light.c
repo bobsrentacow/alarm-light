@@ -70,6 +70,7 @@ alarm_light_set_mono_rgbw(
 int
 alarm_light_set_mono_kelvin(
   double kelvin,
+  double white,
   double bright
 )
 {
@@ -78,12 +79,13 @@ alarm_light_set_mono_kelvin(
   color.kelvin = kelvin;
   interp_color_temp(&color);
 
-  return alarm_light_set_mono_rgbw(color.norm_red, color.norm_green, color.norm_blue, 0.0, bright);
+  return alarm_light_set_mono_rgbw(color.norm_red, color.norm_green, color.norm_blue, white, bright);
 }
 
 int
 alarm_light_set_rand_kelvin(
   double kelvin,
+  double white,
   double bright
 )
 {
@@ -93,15 +95,15 @@ alarm_light_set_rand_kelvin(
   interp_color_temp(&color);
 
   // synthesize colors & brightness
-  uint32_t red, green, blue, white;
+  uint32_t red, green, blue, c_white;
 
   int ii;
   for (ii=0; ii<LED_COUNT; ii++) {
-    white = (uint32_t)(255.0 * 0                * 0.5 * (1.0 + rand() / (double)RAND_MAX)) << 24;
-    red   = (uint32_t)(255.0 * color.norm_red   * 0.5 * (1.0 + rand() / (double)RAND_MAX)) << 16;
-    green = (uint32_t)(255.0 * color.norm_green * 0.5 * (1.0 + rand() / (double)RAND_MAX)) <<  8;
-    blue  = (uint32_t)(255.0 * color.norm_blue  * 0.5 * (1.0 + rand() / (double)RAND_MAX)) <<  0;
-    ledstring.channel[0].leds[ii] = white | red | green | blue;
+    c_white = (uint32_t)(255.0 * white            * 0.5 * (1.0 + rand() / (double)RAND_MAX)) << 24;
+    red     = (uint32_t)(255.0 * color.norm_red   * 0.5 * (1.0 + rand() / (double)RAND_MAX)) << 16;
+    green   = (uint32_t)(255.0 * color.norm_green * 0.5 * (1.0 + rand() / (double)RAND_MAX)) <<  8;
+    blue    = (uint32_t)(255.0 * color.norm_blue  * 0.5 * (1.0 + rand() / (double)RAND_MAX)) <<  0;
+    ledstring.channel[0].leds[ii] = c_white | red | green | blue;
   }
   ledstring.channel[0].brightness = (uint8_t)(255 * bright);
 
@@ -161,6 +163,7 @@ alarm_light_wakeup(
     double kelvin_perSec  //   50
 )
 {
+  // TODO: use a proper mutex
   if (running) {
     running = false;
     sleep(1);
@@ -219,19 +222,22 @@ alarm_light_wakeup(
     double d_maxBright = bright_start + bright_perSec * d_secSinceStart;
     d_maxBright = (d_maxBright < 0) ? 0 : (d_maxBright > 2.0) ? 2.0 : d_maxBright;
     double d_minBright;
+    double d_white;
     if (d_maxBright >= 1.0) {
       d_maxBright = 1.0;
       d_minBright = pow(2, 8 * (1 - d_maxBright));
+      d_white     = pow(2, 8 * (d_maxBright - 2));
     } else {
       d_maxBright = pow(2, 8 * (d_maxBright - 1));
       d_minBright = d_maxBright;
+      d_white     = 0;
     }
     double bright = (d_minBright + ((d_maxBright - d_minBright) * (rand() / (double)RAND_MAX)));
 
     // color temp
     double kelvin = kelvin_start + kelvin_perSec * d_secSinceStart;
 
-    alarm_light_set_rand_kelvin(kelvin, bright);
+    alarm_light_set_rand_kelvin(kelvin, d_white, bright);
 
     usleep(1000000 / FPS);
   }

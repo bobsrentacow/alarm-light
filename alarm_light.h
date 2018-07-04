@@ -2,8 +2,8 @@
 #define __ALARM_LIGHT_H__
 
 extern int alarm_light_set_mono_rgbw(double red, double green, double blue, double white, double bright);
-extern int alarm_light_set_mono_kelvin(double kelvin, double bright);
-extern int alarm_light_set_rand_kelvin(double kelvin, double bright);
+extern int alarm_light_set_mono_kelvin(double kelvin, double white, double bright);
+extern int alarm_light_set_rand_kelvin(double kelvin, double white, double bright);
 extern int alarm_light_off(void);
 extern int alarm_light_wakeup(
     double seconds,
