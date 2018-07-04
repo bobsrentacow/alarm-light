@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
@@ -129,6 +130,28 @@ alarm_light_off(
   return 0;
 }
 
+static void
+ctrl_c_handler(
+    int signum
+)
+{
+  (void)(signum);
+  running = false;
+}
+
+static void
+setup_handlers(
+    void
+)
+{
+  struct sigaction sa = {
+    .sa_handler = ctrl_c_handler,
+  };
+
+  sigaction(SIGINT, &sa, NULL);
+  sigaction(SIGTERM, &sa, NULL);
+}
+
 int
 alarm_light_wakeup(
     double seconds,
@@ -138,6 +161,41 @@ alarm_light_wakeup(
     double kelvin_perSec  //   50
 )
 {
+  if (running) {
+    running = false;
+    sleep(1);
+  }
+  running = true;
+
+  // fork off of the parent process
+  pid_t pid = fork();
+  if (pid < 0)
+    exit(EXIT_FAILURE);
+  if (pid > 0)
+    exit(EXIT_SUCCESS);
+
+  // change the file mask mode -- yield access to files
+  umask(0);
+
+  // TODO: open a log here
+
+  // create a new Session ID for the child process
+  pid_t sid = setsid();
+  if (sid < 0) {
+    // TODO: log error
+    exit(EXIT_FAILURE);
+  }
+
+  // change the current working directory
+  if ((chdir("/")) < 0) {
+    // TODO: log error
+    exit(EXIT_FAILURE);
+  }
+
+  // close the standard file descriptors
+  close(STDIN_FILENO);
+  close(STDOUT_FILENO);
+  close(STDERR_FILENO);
 
   // record startTime
   struct timespec startTime, now;
@@ -146,7 +204,8 @@ alarm_light_wakeup(
   // seed rand()
   srand(time(0));
 
-  running = true;
+  setup_handlers();
+
   while (running) {
     // elapsed time
     clock_gettime(CLOCK_REALTIME, &now);
@@ -185,7 +244,7 @@ alarm_light_wakeup(
   ws2811_render(&ledstring);
   ws2811_fini(&ledstring);
 
-  return 0;
+  exit(EXIT_SUCCESS);
 }
 
 int
