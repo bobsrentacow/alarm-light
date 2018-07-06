@@ -178,16 +178,18 @@ main(
 )
 {
   struct options opts = parse_args(argc, argv);
-  printf("bright: %f\n", opts.bright);
-  printf("kelvin: %f\n", opts.kelvin);
-  printf("red   : %f\n", opts.red   );
-  printf("green : %f\n", opts.green );
-  printf("blue  : %f\n", opts.blue  );
-  printf("white : %f\n", opts.white );
-  printf("off   : %s\n", opts.off   ? "true" : "false");
+  //printf("bright: %f\n", opts.bright);
+  //printf("kelvin: %f\n", opts.kelvin);
+  //printf("red   : %f\n", opts.red   );
+  //printf("green : %f\n", opts.green );
+  //printf("blue  : %f\n", opts.blue  );
+  //printf("white : %f\n", opts.white );
+  //printf("off   : %s\n", opts.off   ? "true" : "false");
 
   if (opts.off) {
+    //printf("alarm_light_init()\n");
     alarm_light_init();
+    //printf("alarm_light_off()\n");
     alarm_light_off();
     return 0;
   }
@@ -206,7 +208,9 @@ main(
     if (opts.bright > 1)
       opts.bright = 1;
 
+    //printf("alarm_light_init()\n");
     alarm_light_init();
+    //printf("alarm_light_set_mono_kelvin()\n");
     alarm_light_set_mono_kelvin(opts.kelvin, opts.white, opts.bright);
     return 0;
   }
@@ -233,13 +237,17 @@ main(
     if (opts.bright > 1)
       opts.bright = 1;
 
+    //printf("alarm_light_init()\n");
     alarm_light_init();
+    //printf("alarm_light_set_mono_rgbw()\n");
     alarm_light_set_mono_rgbw(opts.red, opts.green, opts.blue, opts.white, opts.bright);
     return 0;
   }
 
   setup_handlers();
+  //printf("alarm_light_init()\n");
   alarm_light_init();
+  //printf("alarm_light_wakeup(600, 0, 0.004, 1000, 50)\n");
   alarm_light_wakeup(600, 0, 0.004, 1000, 50);
 
   return 0;
