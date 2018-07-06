@@ -2,5 +2,6 @@ package: libalarm-light
 Version: 1.0
 Priority: optional
 Architecture: all
+Depends: libcolor-temp (>= 1.0)
 Maintainer:  Matt Mahin (matt.mahin@gmail.com)
 Description: Supply LED maps to libws2811
